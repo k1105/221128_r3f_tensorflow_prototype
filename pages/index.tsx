@@ -35,16 +35,18 @@ export default function Home() {
     <>
       <main>
         <div id="root">
-          <Canvas>
-            {ready && (
+          {ready ? (
+            <Canvas>
               <Hands
                 webcam={webcamRef.current as Webcam}
                 model={modelRef.current as handPoseDetection.HandDetector}
                 predictionsRef={predictionsRef}
                 lostCountRef={lostCountRef}
               />
-            )}
-          </Canvas>
+            </Canvas>
+          ) : (
+            <>loading...</>
+          )}
         </div>
         <div
           style={{
