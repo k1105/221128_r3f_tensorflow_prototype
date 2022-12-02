@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { PixelInput } from "@tensorflow-models/hand-pose-detection/dist/shared/calculators/interfaces/common_interfaces";
 import Webcam from "react-webcam";
 import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
-import { Group } from "three";
+import { Color, Group, Mesh, MeshBasicMaterial } from "three";
 import { OrbitControls } from "@react-three/drei";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { updatePoses } from "../lib/updatePoses";
@@ -13,6 +13,9 @@ type Props = {
   model: handPoseDetection.HandDetector;
   predictionsRef: MutableRefObject<handPoseDetection.Hand[]>;
   lostCountRef: MutableRefObject<number>;
+  recordPauseRef: MutableRefObject<boolean>;
+  capturePause: boolean;
+  recordedFlamesRef: MutableRefObject<handPoseDetection.Hand[][]>;
 };
 
 export default function Hands({
@@ -20,6 +23,9 @@ export default function Hands({
   model,
   predictionsRef,
   lostCountRef,
+  recordPauseRef,
+  capturePause,
+  recordedFlamesRef,
 }: Props) {
   const groupRef = useRef<Group>(null);
   const elapsedTime = useRef<number>(0);
@@ -52,11 +58,18 @@ export default function Hands({
         predictionsRef.current = [];
       }
     }
-    requestAnimationFrame(capture);
-  }, [lostCountRef, predictionsRef, model, webcam]);
+
+    if (!capturePause) {
+      requestRef.current = requestAnimationFrame(capture);
+    }
+  }, [lostCountRef, predictionsRef, model, webcam, capturePause]);
   useFrame((_, delta) => {
     stats.begin();
     elapsedTime.current += delta;
+
+    if (!recordPauseRef.current) {
+      recordedFlamesRef.current.push(predictionsRef.current);
+    }
 
     [flames.current, hands.current] = updatePoses({
       predictions: predictionsRef.current,
@@ -72,14 +85,29 @@ export default function Hands({
           -10 * pos.y,
           10 * (pos.z as number)
         );
+        if (recordPauseRef.current) {
+          (
+            (groupRef.current?.children[i] as Mesh)
+              .material as MeshBasicMaterial
+          ).color.set(new Color(0xffffff));
+        } else {
+          (
+            (groupRef.current?.children[i] as Mesh)
+              .material as MeshBasicMaterial
+          ).color.set(new Color(0xff0000));
+        }
       }
     }
     stats.end();
   });
 
   useMemo(() => {
-    requestRef.current = requestAnimationFrame(capture);
-  }, [capture]);
+    if (capturePause) {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    } else {
+      requestRef.current = requestAnimationFrame(capture);
+    }
+  }, [capturePause, capture]);
 
   return (
     <>
@@ -90,7 +118,7 @@ export default function Hands({
             meshes.push(
               <mesh scale={[0.1, 0.1, 0.1]} key={`point${i}`}>
                 <sphereGeometry />
-                <meshBasicMaterial />
+                <meshBasicMaterial color={"white"} />
               </mesh>
             );
           }

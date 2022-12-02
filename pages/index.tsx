@@ -1,10 +1,10 @@
-import Head from "next/head";
 import { useRef, useState, useEffect } from "react";
 import "@tensorflow/tfjs";
 import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
 import Webcam from "react-webcam";
 import Hands from "../components/Hands";
 import { Canvas } from "@react-three/fiber";
+import Controller from "../components/Controller";
 
 export default function Home() {
   const webcamRef = useRef<Webcam>(null);
@@ -12,6 +12,9 @@ export default function Home() {
   const predictionsRef = useRef<handPoseDetection.Hand[]>([]);
   const [ready, setReady] = useState(false);
   const lostCountRef = useRef(0);
+  const recordPauseRef = useRef<boolean>(true);
+  const [capturePause, setCapturePause] = useState<boolean>(false);
+  const recordedFlamesRef = useRef<handPoseDetection.Hand[][]>([]);
 
   useEffect(() => {
     const loadTensorFlow = async () => {
@@ -35,15 +38,26 @@ export default function Home() {
     <>
       <main>
         <div id="root">
+          <Controller
+            recordPauseRef={recordPauseRef}
+            capturePause={capturePause}
+            setCapturePause={setCapturePause}
+            recordedFlamesRef={recordedFlamesRef}
+          />
           {ready ? (
-            <Canvas>
-              <Hands
-                webcam={webcamRef.current as Webcam}
-                model={modelRef.current as handPoseDetection.HandDetector}
-                predictionsRef={predictionsRef}
-                lostCountRef={lostCountRef}
-              />
-            </Canvas>
+            <>
+              <Canvas>
+                <Hands
+                  webcam={webcamRef.current as Webcam}
+                  model={modelRef.current as handPoseDetection.HandDetector}
+                  predictionsRef={predictionsRef}
+                  lostCountRef={lostCountRef}
+                  recordPauseRef={recordPauseRef}
+                  capturePause={capturePause}
+                  recordedFlamesRef={recordedFlamesRef}
+                />
+              </Canvas>
+            </>
           ) : (
             <>loading...</>
           )}
