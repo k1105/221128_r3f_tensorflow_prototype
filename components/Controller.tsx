@@ -6,11 +6,18 @@ import ReloadModelButton from "../components/ReloadModelButton";
 import { Dispatch, MutableRefObject, SetStateAction } from "react";
 import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
 
+type Frame = {
+  keypoints: number[];
+  keypoints3D: (number | undefined)[];
+  handedness: "Right" | "Left";
+  score: number;
+};
+
 type Props = {
   recordPauseRef: MutableRefObject<boolean>;
   capturePause: boolean;
   setCapturePause: Dispatch<SetStateAction<boolean>>;
-  recordedFlamesRef: MutableRefObject<handPoseDetection.Hand[][]>;
+  recordedFlamesRef: MutableRefObject<Frame[]>;
 };
 
 export default function Controller({

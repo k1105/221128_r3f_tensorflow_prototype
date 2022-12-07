@@ -6,6 +6,13 @@ import Hands from "../components/Hands";
 import { Canvas } from "@react-three/fiber";
 import Controller from "../components/Controller";
 
+type Frame = {
+  keypoints: number[];
+  keypoints3D: (number | undefined)[];
+  handedness: "Right" | "Left";
+  score: number;
+};
+
 export default function Home() {
   const webcamRef = useRef<Webcam>(null);
   const modelRef = useRef<null | handPoseDetection.HandDetector>(null);
@@ -14,7 +21,7 @@ export default function Home() {
   const lostCountRef = useRef(0);
   const recordPauseRef = useRef<boolean>(true);
   const [capturePause, setCapturePause] = useState<boolean>(false);
-  const recordedFlamesRef = useRef<handPoseDetection.Hand[][]>([]);
+  const recordedFlamesRef = useRef<Frame[]>([]);
 
   useEffect(() => {
     const loadTensorFlow = async () => {

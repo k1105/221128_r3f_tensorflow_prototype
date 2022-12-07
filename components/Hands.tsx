@@ -8,6 +8,13 @@ import { OrbitControls } from "@react-three/drei";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { updatePoses } from "../lib/updatePoses";
 
+type Frame = {
+  keypoints: number[];
+  keypoints3D: (number | undefined)[];
+  handedness: "Right" | "Left";
+  score: number;
+};
+
 type Props = {
   webcam: Webcam;
   model: handPoseDetection.HandDetector;
@@ -15,7 +22,7 @@ type Props = {
   lostCountRef: MutableRefObject<number>;
   recordPauseRef: MutableRefObject<boolean>;
   capturePause: boolean;
-  recordedFlamesRef: MutableRefObject<handPoseDetection.Hand[][]>;
+  recordedFlamesRef: MutableRefObject<Frame[]>;
 };
 
 export default function Hands({
@@ -68,7 +75,31 @@ export default function Hands({
     elapsedTime.current += delta;
 
     if (!recordPauseRef.current) {
-      recordedFlamesRef.current.push(predictionsRef.current);
+      const frame = (() => {
+        const data = predictionsRef.current;
+        const keypointsArray = [];
+        const keypoints3DArray = [];
+        for (let keypoint of data[0].keypoints) {
+          keypointsArray.push(keypoint.x);
+          keypointsArray.push(keypoint.y);
+        }
+
+        if (data[0].keypoints3D) {
+          for (let keypoint of data[0].keypoints3D) {
+            keypoints3DArray.push(keypoint.x);
+            keypoints3DArray.push(keypoint.y);
+            keypoints3DArray.push(keypoint.z);
+          }
+        }
+
+        return {
+          keypoints: keypointsArray,
+          keypoints3D: keypoints3DArray,
+          handedness: data[0].handedness,
+          score: data[0].score,
+        };
+      })();
+      recordedFlamesRef.current.push(frame);
     }
 
     [flames.current, hands.current] = updatePoses({
@@ -78,7 +109,6 @@ export default function Hands({
 
     if (predictionsRef.current.length > 0) {
       for (let i = 0; i < 21; i++) {
-        //@ts-ignore
         const pos = hands.current[0][i];
         groupRef.current?.children[i].position.set(
           10 * pos.x,
