@@ -6,13 +6,6 @@ import Hands from "../components/Hands";
 import { Canvas } from "@react-three/fiber";
 import Controller from "../components/Controller";
 
-type Frame = {
-  keypoints: number[];
-  keypoints3D: (number | undefined)[];
-  handedness: "Right" | "Left";
-  score: number;
-};
-
 export default function Home() {
   const webcamRef = useRef<Webcam>(null);
   const modelRef = useRef<null | handPoseDetection.HandDetector>(null);

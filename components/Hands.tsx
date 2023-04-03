@@ -8,13 +8,6 @@ import { OrbitControls } from "@react-three/drei";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { updatePoses } from "../lib/updatePoses";
 
-type Frame = {
-  keypoints: number[];
-  keypoints3D: (number | undefined)[];
-  handedness: "Right" | "Left";
-  score: number;
-};
-
 type Props = {
   webcam: Webcam;
   model: handPoseDetection.HandDetector;
@@ -40,7 +33,7 @@ export default function Hands({
   const flames = useRef<
     [handPoseDetection.Keypoint[][], handPoseDetection.Keypoint[][]]
   >([[], []]);
-  const hands = useRef<handPoseDetection.Keypoint[][]>([]);
+  const correctedPoses = useRef<handPoseDetection.Keypoint[][]>([]);
 
   const stats: Stats = Stats();
   stats.showPanel(0);
@@ -97,19 +90,20 @@ export default function Hands({
           keypoints3D: keypoints3DArray,
           handedness: data[0].handedness,
           score: data[0].score,
+          timestamp: delta,
         };
       })();
       recordedFlamesRef.current.push(frame);
     }
 
-    [flames.current, hands.current] = updatePoses({
+    [flames.current, correctedPoses.current] = updatePoses({
       predictions: predictionsRef.current,
       poses: flames.current,
     });
 
     if (predictionsRef.current.length > 0) {
       for (let i = 0; i < 21; i++) {
-        const pos = hands.current[0][i];
+        const pos = correctedPoses.current[0][i];
         groupRef.current?.children[i].position.set(
           10 * pos.x,
           -10 * pos.y,
