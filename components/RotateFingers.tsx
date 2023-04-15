@@ -3,10 +3,11 @@ import { useFrame } from "@react-three/fiber";
 import { PixelInput } from "@tensorflow-models/hand-pose-detection/dist/shared/calculators/interfaces/common_interfaces";
 import Webcam from "react-webcam";
 import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
-import { Color, Group, Mesh, MeshBasicMaterial } from "three";
+import { Group } from "three";
 import { OrbitControls, Line } from "@react-three/drei";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { updatePoses } from "../lib/updatePoses";
+import { calcDist } from "../lib/calcDist";
 type Props = {
   webcam: Webcam;
   model: handPoseDetection.HandDetector;
@@ -17,7 +18,7 @@ type Props = {
   recordedFlamesRef: MutableRefObject<Frame[]>;
 };
 
-export default function Hands({
+export default function RotateFingers({
   webcam,
   model,
   predictionsRef,
@@ -26,29 +27,18 @@ export default function Hands({
   capturePause,
   recordedFlamesRef,
 }: Props) {
-  const [thumb, index, middle, ring, pinky] = [
-    useRef(null),
-    useRef(null),
-    useRef(null),
-    useRef(null),
-    useRef(null),
-  ];
+  const radius: number = 1;
+  const unitNum: number = 100;
 
-  const fingers = [
-    { ref: thumb, name: "thumb" },
-    { ref: index, name: "index" },
-    { ref: middle, name: "middle" },
-    { ref: ring, name: "ring" },
-    { ref: pinky, name: "pinky" },
-  ];
   const groupRef = useRef<Group>(null);
   const elapsedTime = useRef<number>(0);
+  const offsetRadian = useRef<number>(0);
   const requestRef = useRef<null | number>(null);
   const flames = useRef<
     [handPoseDetection.Keypoint[][], handPoseDetection.Keypoint[][]]
   >([[], []]);
   const correctedPoses = useRef<handPoseDetection.Keypoint[][]>([]);
-  const fingerPointsRef = useRef<number[][]>([]);
+  const distsRef = useRef<number[][]>([]);
 
   const stats: Stats = Stats();
   stats.showPanel(0);
@@ -80,7 +70,8 @@ export default function Hands({
   }, [lostCountRef, predictionsRef, model, webcam, capturePause]);
   useFrame((_, delta) => {
     stats.begin();
-    elapsedTime.current += delta;
+    elapsedTime.current += delta; //現在時刻の更新
+    offsetRadian.current = (elapsedTime.current / 10) % (2 * Math.PI); //公転の回転角の更新
 
     if (!recordPauseRef.current) {
       const frame = (() => {
@@ -117,46 +108,82 @@ export default function Hands({
     });
 
     if (predictionsRef.current.length > 0) {
-      // for (let i = 0; i < 21; i++) {
-      //   const pos = correctedPoses.current[0][i];
-      //   groupRef.current?.children[i].position.set(
-      //     10 * pos.x,
-      //     -10 * pos.y,
-      //     10 * (pos.z as number)
-      //   );
-      //   if (recordPauseRef.current) {
-      //     (
-      //       (groupRef.current?.children[i] as Mesh)
-      //         .material as MeshBasicMaterial
-      //     ).color.set(new Color(0xffffff));
-      //   } else {
-      //     (
-      //       (groupRef.current?.children[i] as Mesh)
-      //         .material as MeshBasicMaterial
-      //     ).color.set(new Color(0xff0000));
-      //   }
-      // }
-
+      //指先と付け根の距離を計算
       const hand = correctedPoses.current[0];
-      fingerPointsRef.current = [];
-      for (let i = 0; i < 21; i++) {
-        fingerPointsRef.current.push([
-          10 * hand[i].x,
-          -10 * hand[i].y,
-          10 * (hand[i].z as number),
-        ]);
+      if (distsRef.current.length > unitNum) {
+        distsRef.current.pop();
+      }
+      distsRef.current.unshift([]);
+      for (let i = 0; i < 5; i++) {
+        // distRefに、指先と付け根の距離をpushしていく
+        distsRef.current[0].push(
+          calcDist(
+            {
+              x: hand[4 * i + 1].x,
+              y: hand[4 * i + 1].y,
+              z: hand[4 * i + 1].z as number,
+            },
+            {
+              x: hand[4 * i + 4].x,
+              y: hand[4 * i + 4].y,
+              z: hand[4 * i + 4].z as number,
+            }
+          )
+        );
+
+        if (i > 0) {
+          distsRef.current[0][i] += distsRef.current[0][i - 1];
+        }
       }
 
-      for (let i = 0; i < fingers.length; i++) {
-        const finger = fingers[i];
-        const fingerPoints = [];
-        fingerPoints.push(fingerPointsRef.current[0]);
-        for (let j = 4 * i + 1; j < 4 * (i + 1) + 1; j++) {
-          fingerPoints.push(fingerPointsRef.current[j]);
-        }
-        if (finger.ref.current !== null) {
-          // @ts-ignore
-          finger.ref.current.geometry.setPositions(fingerPoints.flat());
+      if (groupRef.current !== null) {
+        for (let n = 0; n < unitNum; n++) {
+          if (n < distsRef.current.length) {
+            // 点群を作成
+            const fingerPoints: [number, number, number][] = [];
+            const rad = offsetRadian.current + ((2 * Math.PI) / unitNum) * n;
+
+            for (let i = 0; i < 11; i++) {
+              if (i % 2 == 0) {
+                //指先の場合
+                if (i == 0) {
+                  fingerPoints.push([
+                    radius * Math.cos(rad),
+                    0,
+                    radius * Math.sin(rad),
+                  ]);
+                } else {
+                  fingerPoints.push([
+                    radius * Math.cos(rad),
+                    10 * distsRef.current[n][i / 2 - 1],
+                    radius * Math.sin(rad),
+                  ]);
+                }
+              } else {
+                if (i == 1) {
+                  fingerPoints.push([
+                    (radius + 1) * Math.cos(rad),
+
+                    (10 * distsRef.current[n][0]) / 2,
+                    (radius + 1) * Math.sin(rad),
+                  ]);
+                } else {
+                  fingerPoints.push([
+                    (radius + 1) * Math.cos(rad),
+                    (10 *
+                      (distsRef.current[n][(i - 1) / 2 - 1] +
+                        distsRef.current[n][(i + 1) / 2 - 1])) /
+                      2,
+                    (radius + 1) * Math.sin(rad),
+                  ]);
+                }
+              }
+            }
+            // @ts-ignore
+            groupRef.current.children[n].geometry.setPositions(
+              fingerPoints.flat()
+            );
+          }
         }
       }
     }
@@ -177,35 +204,20 @@ export default function Hands({
       <group ref={groupRef}>
         {(() => {
           const lines = [];
-          for (const finger of fingers) {
+          for (let i = 0; i < unitNum; i++) {
             lines.push(
               <Line
-                ref={finger.ref}
-                name={finger.name}
-                points={Array(15).fill(0)}
+                name={"line" + i}
+                points={Array(33).fill(0)}
                 color="red"
                 position={[0, 0, 0]}
-                lineWidth={20}
+                lineWidth={10}
               />
             );
           }
           return lines;
         })()}
       </group>
-      {/* <group ref={groupRef}>
-        {(() => {
-          const meshes = [];
-          for (let i = 0; i < 21; i++) {
-            meshes.push(
-              <mesh scale={[0.1, 0.1, 0.1]} key={`point${i}`}>
-                <sphereGeometry />
-                <meshBasicMaterial color={"white"} />
-              </mesh>
-            );
-          }
-          return meshes;
-        })()}
-      </group> */}
       <OrbitControls />
     </>
   );
